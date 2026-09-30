@@ -207,4 +207,64 @@ router.patch("/:id/status", requireAdmin, async (req, res) => {
   }
 });
 
+
+// 🔒 Delete inquiry — admin only
+router.delete("/:id", requireAdmin, async (req, res) => {
+  try {
+    const id = req.params.id;
+
+    // Make sure an ID was actually provided
+    if (!id) {
+      return res.status(400).json({
+        message: "Inquiry ID is required.",
+      });
+    }
+
+    const supabase = getSupabase();
+
+    // First find the exact inquiry
+    const { data: inquiry, error: findError } = await supabase
+      .from("inquiries")
+      .select("id")
+      .eq("id", id)
+      .single();
+
+    if (findError || !inquiry) {
+      console.error("Inquiry not found:", findError);
+
+      return res.status(404).json({
+        message: "Inquiry not found.",
+      });
+    }
+
+    // Delete ONLY the exact inquiry with this ID
+    const { data: deletedInquiry, error: deleteError } = await supabase
+      .from("inquiries")
+      .delete()
+      .eq("id", id)
+      .select("id")
+      .single();
+
+    if (deleteError || !deletedInquiry) {
+      console.error("Supabase delete error:", deleteError);
+
+      return res.status(500).json({
+        message: "Could not delete inquiry.",
+      });
+    }
+
+    return res.json({
+      message: "Inquiry deleted.",
+      inquiryId: deletedInquiry.id,
+    });
+  } catch (error) {
+    console.error("Inquiry delete error:", error);
+
+    return res.status(500).json({
+      message: "Something went wrong.",
+    });
+  }
+});
+
+
 export { router as inquiryRouter };
