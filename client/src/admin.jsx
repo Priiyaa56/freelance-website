@@ -15,6 +15,7 @@ function Admin() {
   const [error, setError] = useState("");
   const [selectedInquiry, setSelectedInquiry] = useState(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [deletingInquiry, setDeletingInquiry] = useState(false);
 
   // Check if an admin session already exists
   useEffect(() => {
@@ -143,6 +144,58 @@ function Admin() {
       setError("Could not update status.");
     } finally {
       setUpdatingStatus(false);
+    }
+  };
+
+  // Delete inquiry
+  const deleteInquiry = async (id) => {
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this inquiry? This action cannot be undone.",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setDeletingInquiry(true);
+      setError("");
+
+      // Get the latest session
+      const {
+        data: { session: currentSession },
+      } = await supabase.auth.getSession();
+
+      if (!currentSession) {
+        setSession(null);
+        return;
+      }
+
+      const response = await fetch(`${API_URL}/api/inquiries/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${currentSession.access_token}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Could not delete inquiry.");
+      }
+
+      // Remove the inquiry from the current list
+      setInquiries((current) => current.filter((inquiry) => inquiry.id !== id));
+
+      // Close details if the deleted inquiry was open
+      setSelectedInquiry((current) =>
+        current && current.id === id ? null : current,
+      );
+    } catch (err) {
+      console.error("DELETE INQUIRY ERROR:", err);
+      setError("Could not delete inquiry.");
+    } finally {
+      setDeletingInquiry(false);
     }
   };
 
@@ -278,12 +331,7 @@ function Admin() {
 
   // Admin dashboard
   return (
-    <main
-      style={{
-        padding: "60px 5%",
-        minHeight: "80vh",
-      }}
-    >
+    <main style={{ padding: "60px 5%", minHeight: "80vh" }}>
       <div
         style={{
           display: "flex",
@@ -310,12 +358,7 @@ function Admin() {
       )}
 
       {!loading && !error && inquiries.length > 0 && (
-        <div
-          style={{
-            marginTop: "30px",
-            overflowX: "auto",
-          }}
-        >
+        <div style={{ marginTop: "30px", overflowX: "auto" }}>
           <table
             style={{
               width: "100%",
@@ -332,6 +375,7 @@ function Admin() {
                 <th>Status</th>
                 <th>Date</th>
                 <th>Message</th>
+                <th>Delete</th>
               </tr>
             </thead>
 
@@ -350,6 +394,15 @@ function Admin() {
                   <td>
                     <button onClick={() => setSelectedInquiry(inquiry)}>
                       View Details
+                    </button>
+                  </td>
+
+                  <td>
+                    <button
+                      onClick={() => deleteInquiry(inquiry.id)}
+                      disabled={deletingInquiry}
+                    >
+                      {deletingInquiry ? "Deleting..." : "Delete"}
                     </button>
                   </td>
                 </tr>
@@ -424,7 +477,23 @@ function Admin() {
                 <p>{selectedInquiry.message}</p>
               </div>
 
-              <button onClick={() => setSelectedInquiry(null)}>Close</button>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "10px",
+                  flexWrap: "wrap",
+                  marginTop: "20px",
+                }}
+              >
+                <button
+                  onClick={() => deleteInquiry(selectedInquiry.id)}
+                  disabled={deletingInquiry}
+                >
+                  {deletingInquiry ? "Deleting..." : "Delete Inquiry"}
+                </button>
+
+                <button onClick={() => setSelectedInquiry(null)}>Close</button>
+              </div>
             </div>
           )}
         </div>
